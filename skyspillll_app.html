@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkySpill - Harvest Analytics</title>
+  
+  <!-- Phosphor Icons (Professional sleek icons) -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { 
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Space Mono', 'monospace']
+          },
+          colors: {
+            appBg: '#0a1118',
+            cardBg: '#111c2a',
+            cyanGlow: '#00e5ff',
+            blueGlow: '#0077ff'
+          },
+          animation: {
+            'float': 'float 4s ease-in-out infinite',
+            'wave': 'wave 3s linear infinite',
+            'pop-in': 'popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+            'heartbeat': 'heartbeat 1.5s infinite',
+            'shower': 'showerRain 1s infinite linear',
+            'fill-drink': 'fillDrink 2.5s infinite ease-in-out'
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            wave: {
+              '0%': { backgroundPositionX: '0' },
+              '100%': { backgroundPositionX: '1000px' }
+            },
+            popIn: {
+              '0%': { opacity: '0', transform: 'scale(0.8) translateY(20px)' },
+              '100%': { opacity: '1', transform: 'scale(1) translateY(0)' }
+            },
+            heartbeat: {
+              '0%, 100%': { transform: 'scale(1)' },
+              '15%': { transform: 'scale(1.25)' },
+              '30%': { transform: 'scale(1)' },
+              '45%': { transform: 'scale(1.25)' },
+              '60%': { transform: 'scale(1)' }
+            },
+            showerRain: {
+              '0%': { transform: 'translateY(-5px)', opacity: '0' },
+              '30%': { opacity: '1' },
+              '70%': { opacity: '1' },
+              '100%': { transform: 'translateY(12px)', opacity: '0' }
+            },
+            fillDrink: {
+              '0%': { transform: 'scaleY(0.1)' },
+              '40%, 60%': { transform: 'scaleY(1)' },
+              '100%': { transform: 'scaleY(0.1)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { 
+      background-color: #0a1118; 
+      color: white;
+      background-image: radial-gradient(circle at 15% 50%, rgba(0, 119, 255, 0.08), transparent 25%),
+                        radial-gradient(circle at 85% 30%, rgba(0, 229, 255, 0.05), transparent 25%);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0a1118; }
+    ::-webkit-scrollbar-thumb { background: #1a2a40; border-radius: 4px; }
+
+    /* UI Panels */
+    .panel {
+      background: #111c2a;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* Map Overrides for Dark Mode */
+    #map { height: 300px; border-radius: 1rem; z-index: 10; }
+    .leaflet-container { background: #0a1118; }
+    .leaflet-layer, .leaflet-control-zoom-in, .leaflet-control-zoom-out, .leaflet-control-attribution {
+      filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+    }
+
+    /* Space AI Canvas */
+    #aiCanvas {
+      width: 100%;
+      height: 200px;
+      background-image: 
+        linear-gradient(rgba(0, 229, 255, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.1) 1px, transparent 1px);
+      background-size: 20px 20px;
+      border-radius: 1rem;
+      cursor: crosshair;
+    }
+
+    /* Range Slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px; width: 20px;
+      border-radius: 50%;
+      background: #00e5ff;
+      cursor: pointer;
+      margin-top: -8px;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 4px; cursor: pointer;
+      background: rgba(255,255,255,0.2); border-radius: 2px;
+    }
+
+    /* Glow Button */
+    .glow-btn {
+      background: linear-gradient(90deg, #0077ff, #00e5ff);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+    .glow-btn:hover {
+      box-shadow: 0 0 30px rgba(0, 229, 255, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* The Pill Tank */
+    .tank-capsule {
+      width: 240px; height: 400px;
+      border-radius: 120px;
+      background: #0a1118;
+      border: 4px solid #1a2a40;
+      position: relative; overflow: hidden;
+      box-shadow: 0 0 30px rgba(0, 119, 255, 0.1), inset 0 0 20px rgba(0,0,0,0.8);
+    }
+    /* Glowing tank rim */
+    .tank-capsule::after {
+      content: ''; position: absolute; inset: 0;
+      border-radius: 120px;
+      border: 2px solid rgba(0, 229, 255, 0.3);
+      pointer-events: none;
+    }
+    /* The Water */
+    .water-fill {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+      background: linear-gradient(180deg, #00e5ff 0%, #0077ff 100%);
+      transition: height 2.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+      box-shadow: 0 -10px 30px rgba(0, 229, 255, 0.5);
+    }
+    .water-fill::before {
+      content: ""; position: absolute; top: -15px; left: 0; width: 200%; height: 30px;
+      background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1000 40" xmlns="http://www.w3.org/2000/svg"><path d="M0 20 C 150 20, 150 40, 300 40 C 450 40, 450 0, 600 0 C 750 0, 750 20, 900 20 C 1050 20, 1050 40, 1200 40 L 1200 40 L 0 40 Z" fill="%2300e5ff"/></svg>') repeat-x;
+      animation: wave 3s infinite linear;
+    }
+
+    /* Continuous Water Bubbles */
+    @keyframes bubbleUp {
+      0% { transform: translateY(0) translateX(0) scale(0.5); opacity: 0; }
+      10% { opacity: 0.6; }
+      90% { opacity: 0.6; }
+      100% { transform: translateY(-380px) translateX(20px) scale(1.2); opacity: 0; }
+    }
+    .bubble {
+      position: absolute;
+      bottom: -15px;
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.1));
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 50%;
+      animation: bubbleUp linear infinite;
+    }
+    #bubbleContainer {
+      clip-path: inset(calc(100% - var(--fill-pct, 0%)) 0 0 0);
+      transition: clip-path 2.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      15% { transform: scale(1.25); }
+      30% { transform: scale(1); }
+      45% { transform: scale(1.25); }
+      60% { transform: scale(1); }
+    }
+    @keyframes showerRain {
+      0% { transform: translateY(-5px); opacity: 0; }
+      30% { opacity: 1; }
+      70% { opacity: 1; }
+      100% { transform: translateY(12px); opacity: 0; }
+    }
+    @keyframes fillDrink {
+      0% { transform: scaleY(0.1); }
+      40%, 60% { transform: scaleY(1); }
+      100% { transform: scaleY(0.1); }
+    }
+
+    /* FIX: Manually adding the popIn animation so it never fails */
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* Icon SVGs */
+    .weather-icon { width: 120px; height: 120px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); }
+  </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+  <!-- Top Header -->
+  <div class="w-full max-w-7xl flex justify-between items-center mb-6 px-2">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full border-2 border-cyanGlow flex items-center justify-center shadow-[0_0_10px_rgba(0,229,255,0.4)]">
+        <i class="ph-fill ph-drop text-cyanGlow text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">SkySpill</h1>
+        <p class="text-[10px] text-gray-400 uppercase tracking-widest">Rain Catcher - Harvest Analytics</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-xs font-mono text-cyanGlow">
+      <span class="w-2 h-2 rounded-full bg-cyanGlow animate-pulse"></span>
+      Space AI enabled
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+    
+    <!-- LEFT PANEL: Inputs & Weather (Fixed) -->
+    <div class="lg:col-span-4 space-y-4 flex flex-col">
+      
+      <!-- Live Weather Card -->
+      <div class="panel p-6 relative overflow-hidden flex-shrink-0">
+        <div class="absolute top-0 right-0 p-6 opacity-20">
+          <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="1"><path d="M12 2v20M17 5l-10 14M22 12H2M19 17L5 7"/></svg>
+        </div>
+        
+        <p class="text-[10px] text-cyanGlow tracking-widest uppercase mb-1">Current Weather</p>
+        <h2 class="text-3xl font-bold mb-1" id="locDisplay">Locating...</h2>
+        <p class="text-xs text-gray-400 mb-6" id="dateDisplay">Loading date...</p>
+        
+        <div class="flex justify-between items-end">
+          <div>
+            <div class="text-6xl font-light tracking-tighter mb-2"><span id="tempDisplay">--</span><span class="text-3xl text-gray-400">°C</span></div>
+            <div class="flex items-center gap-2 text-sm text-gray-300">
+              <i class="ph ph-wind text-cyanGlow text-lg"></i> <span id="windDisplay">-- km/h</span> wind
+            </div>
+            <div class="flex items-center gap-2 text-sm text-gray-300 mt-1">
+              <span id="conditionIconWrapper"><i class="ph ph-spinner animate-spin text-cyanGlow text-lg"></i></span> <span id="conditionDisplay">Loading...</span>
+            </div>
+          </div>
+          <!-- Dynamic Animated Weather Icon -->
+          <div class="weather-icon animate-float" id="weatherIcon">
+            <!-- Default Cloud SVG -->
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="50" r="25" fill="#facc15" />
+              <path d="M70,65 a15,15 0 0,0 -25,-10 a20,20 0 0,0 -35,15 a15,15 0 0,0 15,15 h40 a15,15 0 0,0 5,-20" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex gap-2">
+        <div class="panel p-1 flex-grow flex items-center px-4">
+          <i class="ph ph-magnifying-glass text-cyanGlow text-lg"></i>
+          <input type="text" id="searchInput" placeholder="Search location..." class="bg-transparent border-none outline-none w-full text-sm text-white px-3 py-2" autocomplete="off">
+          <button id="searchBtn" class="text-xs text-gray-400 hover:text-white transition">Go</button>
+        </div>
+        <button id="gpsBtn" class="panel px-4 py-2 text-sm font-semibold hover:bg-gray-800 transition flex items-center gap-2 border-cyanGlow/30 text-cyanGlow">
+          <i class="ph ph-crosshair text-lg"></i> Use GPS
+        </button>
+      </div>
+
+      <div class="flex gap-4">
+        <div class="panel p-4 flex-grow">
+          <label class="text-[10px] text-gray-400 uppercase tracking-widest mb-2 block flex items-center gap-2"><i class="ph ph-calendar-blank text-lg text-cyanGlow"></i> Start Date</label>
+          <input type="date" id="startDate" value="2024-06-01" class="bg-transparent text-sm w-full outline-none">
+        </div>
+        <div class="panel p-4 flex-grow">
+          <label class="text-[10px] text-gray-400 uppercase tracking-widest mb-2 block flex items-center gap-2"><i class="ph ph-calendar-blank text-lg text-cyanGlow"></i> End Date</label>
+          <input type="date" id="endDate" value="2024-09-30" class="bg-transparent text-sm w-full outline-none">
+        </div>
+      </div>
+
+      <div class="panel p-5">
+        <div class="flex justify-between items-center mb-4">
+          <label class="text-sm font-semibold flex items-center gap-2"><i class="ph ph-house text-xl text-cyanGlow"></i> Roof Square Footage</label>
+          <div class="font-mono text-lg font-bold"><span id="areaDisplay">1,500</span> <span class="text-[10px] text-gray-400">sq ft</span></div>
+        </div>
+        <input type="range" id="roofArea" min="200" max="5000" step="50" value="1500">
+      </div>
+
+      <button id="calculateBtn" class="glow-btn w-full text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-3 mt-auto">
+        <i class="ph-fill ph-drop text-2xl"></i> Calculate Water Saved
+      </button>
+      <p id="statusMsg" class="text-xs text-center text-cyanGlow h-4"></p>
+    </div>
+
+    <!-- RIGHT PANEL: Setup View (Map + Canvas) -->
+    <div id="setupView" class="lg:col-span-8 space-y-4 flex flex-col transition-opacity duration-500">
+      
+      <!-- Leaflet Map -->
+      <div class="panel p-2 flex-grow min-h-[300px] relative">
+        <div id="map" class="w-full h-full"></div>
+      </div>
+
+      <!-- Space AI Roof Mapper -->
+      <div class="panel p-5">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-sm font-bold flex items-center gap-2"><i class="ph-fill ph-magic-wand text-cyanGlow animate-pulse text-lg"></i> Space AI Roof Mapper</h3>
+          <span class="text-[10px] text-gray-400">Click & drag to trace roof</span>
+        </div>
+        <div class="relative w-full h-[200px]">
+          <canvas id="aiCanvas" class="absolute inset-0"></canvas>
+          <div class="absolute top-2 left-3 text-[9px] text-cyanGlow uppercase tracking-widest flex items-center gap-1">
+            <span class="w-1.5 h-1.5 bg-cyanGlow rounded-full"></span> Space AI - Draw Roof
+          </div>
+          <button id="clearCanvasBtn" class="absolute top-2 right-3 text-[9px] text-gray-400 hover:text-white uppercase tracking-widest">
+            Clear
+          </button>
+          <div class="absolute bottom-2 right-3 text-[10px] font-mono text-gray-500">
+            <span id="ptsDisplay">0</span> pts
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Results View (Hidden by Default) -->
+    <div id="resultsView" class="lg:col-span-8 hidden opacity-0 transition-opacity duration-500">
+      
+      <div class="panel p-8 w-full h-full flex flex-col justify-between">
+        
+        <!-- Top row: Tank + Text -->
+        <div class="flex flex-col md:flex-row items-center gap-10 mb-8">
+          
+          <!-- The Tank -->
+          <div class="tank-capsule flex-shrink-0 relative">
+             <div class="absolute top-[-10px] left-1/2 transform -translate-x-1/2 w-20 h-4 bg-gray-800 rounded-full border-2 border-[#1a2a40] z-20"></div>
+             <div id="waterFill" class="water-fill"></div>
+             <!-- Continuous floating bubbles -->
+             <div id="bubbleContainer" class="absolute inset-0 z-10 pointer-events-none" style="--fill-pct: 0%;"></div>
+          </div>
+
+          <!-- Total Text Stats -->
+          <div class="flex-grow">
+            <h3 class="text-xs text-cyanGlow uppercase tracking-widest mb-2 font-semibold">Total Water Harvested</h3>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="text-6xl font-bold font-mono tracking-tighter" id="resLiters">0</span>
+              <span class="text-2xl text-gray-400">L</span>
+            </div>
+            <p class="text-sm text-gray-300 mb-8 leading-relaxed">
+              From <span id="resRain" class="text-cyanGlow font-bold">0 mm</span> of rainfall over <span id="resArea" class="font-bold text-white">0 sq ft</span> of roof.
+            </p>
+            <button id="recalcBtn" class="text-xs text-gray-400 hover:text-white uppercase tracking-widest flex items-center gap-2 transition">
+              &larr; Recalculate
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom Stat Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          <div class="panel p-5 bg-[#0d1622] hover:bg-[#121f2f] transition transform hover:-translate-y-1 opacity-0" id="card1">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="relative w-10 h-10 rounded-full bg-cyanGlow/10 flex items-center justify-center text-cyanGlow">
+                <i class="ph-fill ph-users text-xl"></i>
+                <!-- Animated Beating Heart -->
+                <i class="ph-fill ph-heart text-[12px] text-red-500 absolute -top-1 -right-1 animate-heartbeat"></i>
+              </div>
+              <h4 class="text-[11px] uppercase tracking-widest text-gray-400">Family Survival</h4>
+            </div>
+            <div class="flex items-baseline gap-2 mb-1">
+              <div class="text-4xl font-light font-mono text-white" id="resAutonomy">0</div>
+              <div class="text-sm text-gray-400 font-bold uppercase">Days</div>
+            </div>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wide">Covers all daily needs (540 L/day for 4 people)</p>
+          </div>
+
+          <div class="panel p-5 bg-[#0d1622] hover:bg-[#121f2f] transition transform hover:-translate-y-1 opacity-0" id="card2">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="relative w-10 h-10 rounded-full bg-cyanGlow/10 flex items-center justify-center text-cyanGlow overflow-hidden">
+                <i class="ph-fill ph-shower text-xl relative z-10 mb-2"></i>
+                <!-- Animated falling water drops -->
+                <div class="absolute inset-0 flex justify-center gap-[3px] mt-4">
+                   <div class="w-0.5 h-2 bg-cyanGlow/80 rounded-full animate-shower"></div>
+                   <div class="w-0.5 h-2 bg-cyanGlow/80 rounded-full animate-shower" style="animation-delay: 0.2s;"></div>
+                   <div class="w-0.5 h-2 bg-cyanGlow/80 rounded-full animate-shower" style="animation-delay: 0.4s;"></div>
+                </div>
+              </div>
+              <h4 class="text-[11px] uppercase tracking-widest text-gray-400">Total Baths</h4>
+            </div>
+            <div class="flex items-baseline gap-2 mb-1">
+              <div class="text-4xl font-light font-mono text-white" id="resBaths">0</div>
+              <div class="text-sm text-gray-400 font-bold uppercase">Baths</div>
+            </div>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wide">25 L per standard bucket bath</p>
+          </div>
+
+          <div class="panel p-5 bg-[#0d1622] hover:bg-[#121f2f] transition transform hover:-translate-y-1 opacity-0" id="card3">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="relative w-10 h-10 rounded-full bg-cyanGlow/10 flex items-center justify-center text-cyanGlow">
+                <!-- Custom animated glass filling up -->
+                <svg viewBox="0 0 24 24" class="w-6 h-6 text-cyanGlow" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                   <path d="M6 5 L7 19 A2 2 0 0 0 9 21 L15 21 A2 2 0 0 0 17 19 L18 5"></path>
+                   <path d="M6 9 L18 9"></path>
+                   <rect x="7.5" y="10" width="9" height="10" fill="currentColor" stroke="none" class="origin-bottom animate-fill-drink opacity-60"></rect>
+                </svg>
+              </div>
+              <h4 class="text-[11px] uppercase tracking-widest text-gray-400">Drinking Water</h4>
+            </div>
+            <div class="flex items-baseline gap-2 mb-1">
+              <div class="text-4xl font-light font-mono text-white" id="resDrink">0</div>
+              <div class="text-sm text-gray-400 font-bold uppercase">Years</div>
+            </div>
+            <p class="text-[10px] text-gray-500 uppercase tracking-wide">For 1 person (12 L/day)</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- STATE ---
+    let currentLat = 35.6892; // Default Tehran
+    let currentLon = 51.3890;
+    let map, marker;
+    let isDrawing = false;
+    let drawPoints = [];
+
+    // --- UTILS ---
+    const formatNum = (num) => Math.floor(num).toLocaleString();
+    
+    // Animate numbers (Slot machine effect)
+    function animateValue(objId, start, end, duration, isFloat=false) {
+      let obj = document.getElementById(objId);
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const easeOut = progress * (2 - progress); 
+        let current = (easeOut * (end - start) + start);
+        obj.innerHTML = isFloat ? current.toFixed(1) : Math.floor(current).toLocaleString();
+        if (progress < 1) window.requestAnimationFrame(step);
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    // --- MAP & LIVE WEATHER ---
+    function initMap() {
+      map = L.map('map').setView([currentLat, currentLon], 10);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+      marker = L.marker([currentLat, currentLon]).addTo(map);
+
+      map.on('click', function (e) {
+        updateLocation(e.latlng.lat, e.latlng.lng);
+      });
+      
+      // Initial Weather Fetch
+      updateLocation(currentLat, currentLon);
+      
+      // Set today's date in header
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      document.getElementById('dateDisplay').innerText = new Date().toLocaleDateString('en-US', options);
+    }
+
+    async function updateLocation(lat, lon) {
+      currentLat = lat; currentLon = lon;
+      map.setView([lat, lon], 12);
+      marker.setLatLng([lat, lon]);
+      
+      document.getElementById('locDisplay').innerText = "Locating...";
+      
+      try {
+        // 1. Reverse Geocode for City Name
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+        const geoData = await geoRes.json();
+        const city = geoData.address.city || geoData.address.town || geoData.address.country || "Custom Pin";
+        document.getElementById('locDisplay').innerText = city;
+
+        // 2. Live Weather from Open-Meteo
+        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+        const weatherData = await weatherRes.json();
+        const cw = weatherData.current_weather;
+        
+        document.getElementById('tempDisplay').innerText = Math.round(cw.temperature);
+        document.getElementById('windDisplay').innerText = cw.windspeed;
+        
+        // Simple WMO code to condition text/icon mapping
+        let condition = "Clear";
+        let conditionIcon = `<i class="ph-fill ph-sun text-cyanGlow text-lg"></i>`;
+        let svgIcon = `<circle cx="50" cy="50" r="25" fill="#facc15" />`; // Sun
+        
+        if(cw.weathercode > 0 && cw.weathercode <= 3) {
+            condition = "Cloudy";
+            conditionIcon = `<i class="ph-fill ph-cloud text-cyanGlow text-lg"></i>`;
+            svgIcon = `<circle cx="40" cy="40" r="20" fill="#facc15" /><path d="M70,65 a15,15 0 0,0 -25,-10 a20,20 0 0,0 -35,15 a15,15 0 0,0 15,15 h40 a15,15 0 0,0 5,-20" fill="#cbd5e1" />`;
+        }
+        else if (cw.weathercode > 3) {
+            condition = "Rain/Storm";
+            conditionIcon = `<i class="ph-fill ph-cloud-rain text-cyanGlow text-lg"></i>`;
+            svgIcon = `<path d="M70,55 a15,15 0 0,0 -25,-10 a20,20 0 0,0 -35,15 a15,15 0 0,0 15,15 h40 a15,15 0 0,0 5,-20" fill="#94a3b8" /><path d="M40,75 l-5,15 M55,75 l-5,15 M70,75 l-5,15" stroke="#00e5ff" stroke-width="3" stroke-linecap="round"/>`;
+        }
+        
+        document.getElementById('conditionDisplay').innerText = condition;
+        document.getElementById('conditionIconWrapper').innerHTML = conditionIcon;
+        document.getElementById('weatherIcon').innerHTML = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${svgIcon}</svg>`;
+
+      } catch(e) {
+        document.getElementById('locDisplay').innerText = "Unknown";
+      }
+    }
+
+    // --- SPACE AI CANVAS DRAWING ---
+    const canvas = document.getElementById('aiCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if(drawPoints.length === 0) return;
+      
+      ctx.beginPath();
+      ctx.strokeStyle = '#00e5ff';
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#00e5ff';
+      
+      ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
+      for(let i = 1; i < drawPoints.length; i++) {
+        ctx.lineTo(drawPoints[i].x, drawPoints[i].y);
+      }
+      ctx.stroke();
+      
+      // Close shape lightly
+      if(drawPoints.length > 2) {
+          ctx.lineTo(drawPoints[0].x, drawPoints[0].y);
+          ctx.fillStyle = 'rgba(0, 229, 255, 0.1)';
+          ctx.fill();
+      }
+      
+      document.getElementById('ptsDisplay').innerText = drawPoints.length;
+    }
+
+    function handleDraw(e) {
+      if(!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      drawPoints.push({x, y});
+      draw();
+    }
+
+    canvas.addEventListener('mousedown', (e) => { isDrawing = true; drawPoints = []; handleDraw(e); });
+    canvas.addEventListener('mousemove', handleDraw);
+    canvas.addEventListener('mouseup', () => { 
+        isDrawing = false; 
+        // Fake AI calculation: scale bounding box to square footage
+        if(drawPoints.length > 5) {
+            let minX = 1000, maxX = 0, minY = 1000, maxY = 0;
+            drawPoints.forEach(p => {
+                if(p.x < minX) minX = p.x; if(p.x > maxX) maxX = p.x;
+                if(p.y < minY) minY = p.y; if(p.y > maxY) maxY = p.y;
+            });
+            
+            // Adjusted the scale multiplier so larger drawings map to realistic square footage
+            let areaVal = Math.floor(((maxX - minX) * (maxY - minY)) * 0.05);
+            
+            if(areaVal < 200) areaVal = 200;
+            if(areaVal > 5000) areaVal = 5000;
+            
+            document.getElementById('roofArea').value = areaVal;
+            document.getElementById('areaDisplay').innerText = areaVal.toLocaleString();
+        }
+    });
+    canvas.addEventListener('mouseleave', () => isDrawing = false);
+    
+    // Touch support for canvas
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing = true; drawPoints = []; handleDraw(e); });
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleDraw(e); });
+    canvas.addEventListener('touchend', () => isDrawing = false);
+
+    document.getElementById('clearCanvasBtn').addEventListener('click', () => {
+      drawPoints = []; draw();
+    });
+
+    // --- STREAMING_CHUNK:Setting up core UI listeners and Harvest Math Logic... ---
+    // --- UI LISTENERS ---
+    document.addEventListener("DOMContentLoaded", () => {
+      initMap();
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      document.getElementById('roofArea').addEventListener('input', (e) => {
+        document.getElementById('areaDisplay').innerText = formatNum(e.target.value);
+      });
+
+      document.getElementById('gpsBtn').addEventListener('click', () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => updateLocation(pos.coords.latitude, pos.coords.longitude),
+            () => alert("GPS failed. Click the map.")
+          );
+        }
+      });
+
+      document.getElementById('searchBtn').addEventListener('click', async () => {
+         const q = document.getElementById('searchInput').value;
+         if(!q) return;
+         try {
+             const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${q}&count=1`);
+             const data = await res.json();
+             if(data.results && data.results.length > 0) {
+                 updateLocation(data.results[0].latitude, data.results[0].longitude);
+             }
+         } catch(e) {}
+      });
+
+      document.getElementById('calculateBtn').addEventListener('click', calculateHarvest);
+      document.getElementById('recalcBtn').addEventListener('click', () => {
+          document.getElementById('resultsView').classList.replace('block', 'hidden');
+          document.getElementById('resultsView').classList.replace('opacity-100', 'opacity-0');
+          document.getElementById('setupView').classList.replace('hidden', 'flex');
+          setTimeout(() => document.getElementById('setupView').classList.replace('opacity-0', 'opacity-100'), 50);
+      });
+    });
+
+    // --- THE MATH & RESULTS ---
+    async function calculateHarvest() {
+      const btn = document.getElementById('calculateBtn');
+      const status = document.getElementById('statusMsg');
+      
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const areaSqFt = parseFloat(document.getElementById('roofArea').value);
+
+      if (!startDate || !endDate) return;
+
+      // 1. Safety Check: Ensure dates are in the past (Archive API lag)
+      const endD = new Date(endDate);
+      const today = new Date();
+      today.setDate(today.getDate() - 5); // Archive is usually ~5 days behind
+      
+      if (endD > today) {
+         status.innerText = "⚠️ Please select an end date at least 5 days in the past.";
+         return;
+      }
+
+      btn.innerHTML = "Processing Analytics...";
+      status.innerText = "Querying weather archive...";
+      
+      try {
+        const apiUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${currentLat}&longitude=${currentLon}&start_date=${startDate}&end_date=${endDate}&daily=precipitation_sum&timezone=auto`;
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        
+        // 2. Catch specific API errors from Open-Meteo
+        if (data.error) {
+            throw new Error(data.reason || "Invalid date range or API error.");
+        }
+        
+        const totalRainMm = data.daily.precipitation_sum.reduce((sum, val) => sum + (val || 0), 0);
+        
+        // The Math
+        const totalLiters = areaSqFt * 0.0929 * totalRainMm;
+        const autonomyDays = totalLiters / 540; // Family of 4 (135 * 4 = 540)
+        const bucketBaths = totalLiters / 25;
+        const drinkingYears = totalLiters / (12 * 365); // 12L per day
+
+        // Update Text
+        document.getElementById('resRain').innerText = totalRainMm.toFixed(1) + " mm";
+        document.getElementById('resArea').innerText = formatNum(areaSqFt) + " sq ft";
+
+        // View Transition
+        document.getElementById('setupView').classList.replace('opacity-100', 'opacity-0');
+        setTimeout(() => {
+            document.getElementById('setupView').classList.replace('flex', 'hidden');
+            document.getElementById('resultsView').classList.replace('hidden', 'block');
+            setTimeout(() => document.getElementById('resultsView').classList.replace('opacity-0', 'opacity-100'), 50);
+            
+            // Trigger Animations
+            triggerResultAnimations(totalLiters, autonomyDays, bucketBaths, drinkingYears);
+        }, 500);
+
+      } catch (error) {
+        // Display the exact error on the screen
+        status.innerText = "⚠️ " + (error.message || "Error fetching weather data.");
+      } finally {
+        btn.innerHTML = `<i class="ph-fill ph-drop text-2xl"></i> Calculate Water Saved`;
+        // Only clear the status message if it wasn't an error
+        setTimeout(() => {
+            if(!status.innerText.includes("⚠️")) status.innerText = "";
+        }, 3000);
+      }
+    }
+
+    function triggerResultAnimations(liters, days, baths, years) {
+      // 1. Tank Fill & Clip Path for Bubbles
+      let fillPct = (days / 365) * 100;
+      if (fillPct > 100) fillPct = 105;
+      
+      document.getElementById('waterFill').style.height = '0%';
+      document.getElementById('bubbleContainer').style.setProperty('--fill-pct', '0%');
+      
+      setTimeout(() => {
+        document.getElementById('waterFill').style.height = `${fillPct}%`;
+        document.getElementById('bubbleContainer').style.setProperty('--fill-pct', `${fillPct}%`);
+      }, 100);
+
+      // 2. Rolling Numbers
+      animateValue("resLiters", 0, liters, 2000);
+      animateValue("resAutonomy", 0, days, 2000);
+      animateValue("resBaths", 0, baths, 2000);
+      animateValue("resDrink", 0, years, 2000, true);
+
+      // 3. Staggered Stat Cards pop-in (FIXED)
+      const cards = ['card1', 'card2', 'card3'];
+      cards.forEach((card, index) => {
+          const el = document.getElementById(card);
+          // Force opacity to 1 immediately so they aren't invisible
+          el.classList.remove('opacity-0'); 
+          el.style.opacity = '1'; 
+          
+          el.style.animation = 'none'; // reset
+          el.offsetHeight; /* trigger reflow */
+          el.style.animation = `popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards ${index * 0.2}s`;
+      });
+      
+      // 4. Start Continuous Bubbles
+      createBubbles();
+    }
+
+    function createBubbles() {
+        const container = document.getElementById('bubbleContainer');
+        container.innerHTML = '';
+        // Create 20 continuous animated bubbles
+        for(let i=0; i<20; i++) {
+            let b = document.createElement('div');
+            b.className = 'bubble';
+            b.style.width = Math.random() * 10 + 4 + 'px';
+            b.style.height = b.style.width;
+            b.style.left = Math.random() * 90 + 5 + '%';
+            b.style.animationDuration = Math.random() * 4 + 2 + 's';
+            b.style.animationDelay = Math.random() * 3 + 's';
+            container.appendChild(b);
+        }
+    }
+  </script>
+</body>
+</html>
